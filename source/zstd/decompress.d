@@ -10,13 +10,17 @@ void[] uncompress(const(void)[] src)
         throw new ZstdException("Unknown original size. Use stream API");
 
     auto destBuf = new ubyte[destCap];
-    auto result = ZSTD_decompress(destBuf.ptr, destCap, src.ptr, src.length);
+    return uncompress(src, destBuf);
+}
+
+void[] uncompress(const(void)[] src, ubyte[] dest)
+{
+    auto result = ZSTD_decompress(dest.ptr, dest.length, src.ptr, src.length);
     if (ZSTD_isError(result)) {
-        destBuf = null;
         throw new ZstdException(result);
     }
 
-    return destBuf[0..result];
+    return dest[0..result];
 }
 
 class Decompressor
