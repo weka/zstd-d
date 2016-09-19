@@ -12,18 +12,29 @@ enum Level : int
     size = 22,
 }
 
+auto compressBound(size_t srcLength) {
+    return ZSTD_compressBound(srcLength);
+}
+
 ubyte[] compress(const(void)[] src, int level = Level.base)
 {
-    auto destCap = ZSTD_compressBound(src.length);
+    auto destCap = compressBound(src.length);
     auto destBuf = new ubyte[destCap];
-    auto result = ZSTD_compress(destBuf.ptr, destCap, src.ptr, src.length, level);
+    return compress(src, destBuf, level);
+}
+
+// TODO: This method should use the no allocation API
+ubyte[] compress(const(void)[] src, ubyte[] dest, int level = Level.base)
+{
+    auto result = ZSTD_compress(dest.ptr, dest.length, src.ptr, src.length, level);
     if (ZSTD_isError(result)) {
-        destBuf = null;
         throw new ZstdException(result);
     }
 
-    return destBuf[0..result];
+    return dest[0..result];
 }
+
+// DONT USE - GC and really unnecessary copies
 
 class Compressor
 {
