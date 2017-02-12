@@ -3,8 +3,7 @@ module zstd.compress;
 import zstd.c.zstd;
 import zstd.common;
 
-enum Level : int
-{
+public enum Level : int {
     base = 3,
     mix = 1,
     max = 22,
@@ -12,20 +11,18 @@ enum Level : int
     size = 22,
 }
 
-auto compressBound(size_t srcLength) {
+public auto compressBound(size_t srcLength) {
     return ZSTD_compressBound(srcLength);
 }
 
-ubyte[] compress(const(void)[] src, int level = Level.base)
-{
+public ubyte[] compress(const(void)[] src, int level = Level.base) {
     auto destCap = compressBound(src.length);
     auto destBuf = new ubyte[destCap];
     return compress(src, destBuf, level);
 }
 
 // TODO: This method should use the no allocation API
-ubyte[] compress(const(void)[] src, ubyte[] dest, int level = Level.base)
-{
+public ubyte[] compress(const(void)[] src, ubyte[] dest, int level = Level.base) {
     auto result = ZSTD_compress(dest.ptr, dest.length, src.ptr, src.length, level);
     if (ZSTD_isError(result)) {
         throw new ZstdException(result);
@@ -34,91 +31,77 @@ ubyte[] compress(const(void)[] src, ubyte[] dest, int level = Level.base)
     return dest[0..result];
 }
 
-// DONT USE - GC and really unnecessary copies
+public class StreamCompressor {
+    private ZSTD_CStream* cstream;
 
-class Compressor
-{
-  private:
-    ZSTD_CStream* cstream;
-    ubyte[] buffer;
-
-  public:
-    @property @trusted static
-    {
-        size_t recommendedInSize()
-        {
-            return ZSTD_CStreamInSize();
-        }
-
-        size_t recommendedOutSize()
-        {
-            return ZSTD_CStreamOutSize();
-        }
+    public static @property size_t recommendedInSize() @trusted {
+        return ZSTD_CStreamInSize();
     }
 
-    this(int level = Level.base)
-    in
-    {
+    public static @property size_t recommendedOutSize() @trusted {
+        return ZSTD_CStreamOutSize();
+    }
+
+    public this(int level = Level.base)
+    in {
         assert(Level.min <= level && level <= Level.max);
-    }
-    body
-    {
+    } body {
         cstream = ZSTD_createCStream();
-        buffer = new ubyte[](recommendedOutSize);
         size_t result = ZSTD_initCStream(cstream, level);
-        if (ZSTD_isError(result))
+        if (ZSTD_isError(result)) {
             throw new ZstdException(result);
+        }
     }
 
-    ~this()
-    {
+    public ~this() {
         closeStream();
     }
 
-    ubyte[] compress(const(void)[] src)
-    {
-        ubyte[] result;
+    public bool compress(ref const(void)[] src, ref void[] dest) {
+        import std.range : empty;
         ZSTD_inBuffer input = {src.ptr, src.length, 0};
-        ZSTD_outBuffer output = {buffer.ptr, buffer.length, 0};
+        ZSTD_outBuffer output = {dest.ptr, dest.length, 0};
 
-        while (input.pos < input.size) {
-            output.pos = 0;
-            size_t code = ZSTD_compressStream(cstream, &output, &input);
-            if (ZSTD_isError(code))
-                throw new ZstdException(code);
-            result ~= buffer[0..output.pos];
+        size_t code = ZSTD_compressStream(cstream, &output, &input);
+        if (ZSTD_isError(code)) {
+            throw new ZstdException(code);
         }
 
-        return result;
+        src = src[input.pos .. $];
+        dest = dest[0 .. output.pos];
+        return (src.empty);
     }
 
-    ubyte[] flush()
-    {
-        ZSTD_outBuffer output = {buffer.ptr, buffer.length, 0};
+    public bool flush(ref void[] dest) {
+        ZSTD_outBuffer output = {dest.ptr, dest.length, 0};
 
-        size_t code = ZSTD_flushStream(cstream, &output);
-        if (ZSTD_isError(code))
-            throw new ZstdException(code);
+        size_t remainingToFlush = ZSTD_flushStream(cstream, &output);
+        if (ZSTD_isError(remainingToFlush)) {
+            throw new ZstdException(remainingToFlush);
+        }
 
-        return buffer[0..output.pos];
+        dest = dest[0 .. output.pos];
+        return (remainingToFlush == 0);
     }
 
-    ubyte[] finish()
-    {
-        ZSTD_outBuffer output = {buffer.ptr, buffer.length, 0};
+    public bool finish(ref void[] dest) {
+        ZSTD_outBuffer output = {dest.ptr, dest.length, 0};
 
         size_t remainingToFlush = ZSTD_endStream(cstream, &output);
-        // TODO: Provide finish(ref size_t remainingToFlush) version?
-        if (remainingToFlush > 0)
-            throw new ZstdException("not fully flushed.");
-        closeStream();
+        if (ZSTD_isError(remainingToFlush)) {
+            throw new ZstdException(remainingToFlush);
+        }
 
-        return buffer[0..output.pos];
+        dest = dest[0 .. output.pos];
+        if (remainingToFlush > 0) {
+            return false;
+        }
+
+        closeStream();
+        return true;
     }
 
-  private:
-    void closeStream()
-    {
+    private void closeStream() {
         if (cstream) {
             ZSTD_freeCStream(cstream);
             cstream = null;
