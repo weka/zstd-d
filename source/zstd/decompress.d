@@ -1,20 +1,20 @@
 module zstd.decompress;
 
+import std.range : empty;
 import zstd.c.zstd;
 import zstd.common;
 
-void[] uncompress(const(void)[] src)
-{
+public void[] uncompress(const(void)[] src) {
     auto destCap = ZSTD_getDecompressedSize(src.ptr, src.length);
-    if (destCap == 0)
+    if (destCap == 0) {
         throw new ZstdException("Unknown original size. Use stream API");
+    }
 
     auto destBuf = new ubyte[destCap];
     return uncompress(src, destBuf);
 }
 
-void[] uncompress(const(void)[] src, ubyte[] dest)
-{
+public void[] uncompress(const(void)[] src, void[] dest) {
     auto result = ZSTD_decompress(dest.ptr, dest.length, src.ptr, src.length);
     if (ZSTD_isError(result)) {
         throw new ZstdException(result);
@@ -23,76 +23,57 @@ void[] uncompress(const(void)[] src, ubyte[] dest)
     return dest[0..result];
 }
 
-class Decompressor
-{
-  private:
-    ZSTD_DStream* dstream;
-    ubyte[] buffer;
+public class StreamDecompressor {
+    private ZSTD_DStream* dstream;
 
-  public:
-    @property @trusted static
-    {
-        size_t recommendedInSize()
-        {
-            return ZSTD_DStreamInSize();
-        }
-
-        size_t recommendedOutSize()
-        {
-            return ZSTD_DStreamOutSize();
-        }
+    public static @property size_t recommendedInSize() @trusted {
+        return ZSTD_DStreamInSize();
+    }
+    public static @property size_t recommendedOutSize() @trusted {
+        return ZSTD_DStreamOutSize();
     }
 
-    this()
-    {
+    public this() {
         dstream = ZSTD_createDStream();
-        buffer = new ubyte[](recommendedOutSize);
         size_t result = ZSTD_initDStream(dstream);
-        if (ZSTD_isError(result))
+        if (ZSTD_isError(result)) {
             throw new ZstdException(result);
+        }
     }
 
-    ~this()
-    {
+    public ~this() {
         closeStream();
     }
 
-    ubyte[] decompress(const(void)[] src)
-    {
-        ubyte[] result;
+    public bool decompress(ref const(void)[] src, ref void[] dest) {
         ZSTD_inBuffer input = {src.ptr, src.length, 0};
-        ZSTD_outBuffer output = {buffer.ptr, buffer.length, 0};
+        ZSTD_outBuffer output = {dest.ptr, dest.length, 0};
 
-        while (input.pos < input.size) {
-            output.pos = 0;
-            size_t code = ZSTD_decompressStream(dstream, &output, &input);
-            if (ZSTD_isError(code))
-                throw new ZstdException(code);
-            result ~= buffer[0..output.pos];
+        size_t code = ZSTD_decompressStream(dstream, &output, &input);
+        if (ZSTD_isError(code)) {
+            throw new ZstdException(code);
         }
 
-        return result;
+        src = src[input.pos .. $];
+        dest = dest[0 .. output.pos];
+        return (src.empty);
     }
 
-    ubyte[] flush()
-    {
-        return null;
+    public bool flush(ref void[] dest) {
+        dest = null;
+        return true;
     }
 
-    ubyte[] finish()
-    {
+    public bool finish(ref void[] dest) {
         closeStream();
-
-        return null;
+        dest = null;
+        return true;
     }
 
-  private:
-    void closeStream()
-    {
+    private void closeStream() {
         if (dstream) {
             ZSTD_freeDStream(dstream);
             dstream = null;
         }
     }
 }
-
