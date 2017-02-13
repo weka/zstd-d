@@ -76,4 +76,14 @@ public class StreamDecompressor {
             dstream = null;
         }
     }
+
+    public auto applyDecompress(const(void)[] src, void[] dest) {
+        return Applier!(const(void)[])(src, dest, &this.decompress);
+    }
+    public auto applyFlush(void[] dest) {
+        return Applier!()(dest, &this.flush);
+    }
+    public auto applyFinish(void[] dest) {
+        return Applier!()(dest, &this.finish);
+    }
 }

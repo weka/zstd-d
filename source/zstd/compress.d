@@ -107,4 +107,14 @@ public class StreamCompressor {
             cstream = null;
         }
     }
+
+    public auto applyCompress(const(void)[] src, void[] dest) {
+        return Applier!(const(void)[])(src, dest, &this.compress);
+    }
+    public auto applyFlush(void[] dest) {
+        return Applier!()(dest, &this.flush);
+    }
+    public auto applyFinish(void[] dest) {
+        return Applier!()(dest, &this.finish);
+    }
 }
