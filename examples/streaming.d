@@ -18,6 +18,7 @@ void main(string[] args) {
     auto compressor = new StreamCompressor(6);
     void[] compressed;
     compressed.reserve(original.length);
+    compressor.startNew();
     foreach(buf; compressor.applyCompress(original, buffer)) {
         compressed ~= buf;
     }
@@ -31,11 +32,29 @@ void main(string[] args) {
     auto decompressor = new StreamDecompressor();
     void[] decompressed;
     decompressed.reserve(original.length);
+    decompressor.startNew();
     foreach(buf; decompressor.applyDecompress(compressed, buffer)) {
         decompressed ~= buf;
     }
-    foreach(buf; decompressor.applyFinish(buffer)) {
-        //assert(false);
+    std.stdio.writefln("Done.");
+
+    assert(original == decompressed);
+
+    // again
+    compressed.length = 0;
+    decompressed.length = 0;
+    std.stdio.writef("Start compressing... ");
+    compressor.startNew();
+    foreach(buf; compressor.applyCompress(original, buffer)) {
+        compressed ~= buf;
+    }
+    foreach(buf; compressor.applyFinish(buffer)) {
+        compressed ~= buf;
+    }
+    std.stdio.writefln("Done.");
+    std.stdio.writef("Start decompressing... ");
+    decompressor.startNew();
+    foreach(buf; decompressor.applyDecompress(compressed, buffer)) {
         decompressed ~= buf;
     }
     std.stdio.writefln("Done.");

@@ -35,14 +35,20 @@ public class StreamDecompressor {
 
     public this() {
         dstream = ZSTD_createDStream();
+    }
+
+    public ~this() {
+        if (dstream) {
+            ZSTD_freeDStream(dstream);
+            dstream = null;
+        }
+    }
+
+    public void startNew() {
         size_t result = ZSTD_initDStream(dstream);
         if (ZSTD_isError(result)) {
             throw new ZstdException(result);
         }
-    }
-
-    public ~this() {
-        closeStream();
     }
 
     public bool decompress(ref const(void)[] src, ref void[] dest) {
@@ -59,31 +65,7 @@ public class StreamDecompressor {
         return (src.empty);
     }
 
-    public bool flush(ref void[] dest) {
-        dest = null;
-        return true;
-    }
-
-    public bool finish(ref void[] dest) {
-        closeStream();
-        dest = null;
-        return true;
-    }
-
-    private void closeStream() {
-        if (dstream) {
-            ZSTD_freeDStream(dstream);
-            dstream = null;
-        }
-    }
-
     public auto applyDecompress(const(void)[] src, void[] dest) {
         return Applier!(const(void)[])(src, dest, &this.decompress);
-    }
-    public auto applyFlush(void[] dest) {
-        return Applier!()(dest, &this.flush);
-    }
-    public auto applyFinish(void[] dest) {
-        return Applier!()(dest, &this.finish);
     }
 }

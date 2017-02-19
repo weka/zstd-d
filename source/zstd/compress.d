@@ -33,6 +33,7 @@ public ubyte[] compress(const(void)[] src, ubyte[] dest, int level = Level.base)
 
 public class StreamCompressor {
     private ZSTD_CStream* cstream;
+    private int level = Level.base;
 
     public static @property size_t recommendedInSize() @trusted {
         return ZSTD_CStreamInSize();
@@ -47,14 +48,21 @@ public class StreamCompressor {
         assert(Level.min <= level && level <= Level.max);
     } body {
         cstream = ZSTD_createCStream();
+        this.level = level;
+    }
+
+    public ~this() {
+        if (cstream) {
+            ZSTD_freeCStream(cstream);
+            cstream = null;
+        }
+    }
+
+    public void startNew() {
         size_t result = ZSTD_initCStream(cstream, level);
         if (ZSTD_isError(result)) {
             throw new ZstdException(result);
         }
-    }
-
-    public ~this() {
-        closeStream();
     }
 
     public bool compress(ref const(void)[] src, ref void[] dest) {
@@ -93,19 +101,7 @@ public class StreamCompressor {
         }
 
         dest = dest[0 .. output.pos];
-        if (remainingToFlush > 0) {
-            return false;
-        }
-
-        closeStream();
-        return true;
-    }
-
-    private void closeStream() {
-        if (cstream) {
-            ZSTD_freeCStream(cstream);
-            cstream = null;
-        }
+        return (remainingToFlush == 0);
     }
 
     public auto applyCompress(const(void)[] src, void[] dest) {
