@@ -1,5 +1,7 @@
 module zstd.compress;
 
+import std.exception;
+
 import zstd.c.zstd;
 import zstd.common;
 
@@ -21,7 +23,6 @@ public ubyte[] compress(const(void)[] src, int level = Level.base) {
     return compress(src, destBuf, level);
 }
 
-// TODO: This method should use the no allocation API
 public ubyte[] compress(const(void)[] src, ubyte[] dest, int level = Level.base) {
     auto result = ZSTD_compress(dest.ptr, dest.length, src.ptr, src.length, level);
     if (ZSTD_isError(result)) {
@@ -29,6 +30,45 @@ public ubyte[] compress(const(void)[] src, ubyte[] dest, int level = Level.base)
     }
 
     return dest[0..result];
+}
+
+public class Compressor {
+    import core.sys.posix.sys.mman;
+    private int level = Level.base;
+    private void* workspace;
+    private size_t workspaceSize;
+    private ZSTD_CCtx* ctx = null;
+
+    this(int level) {
+        this.level = level;
+
+        this.workspaceSize = ZSTD_estimateCCtxSize(level);
+        this.workspace = mmap(null, workspaceSize, (PROT_READ | PROT_WRITE), (MAP_PRIVATE | MAP_ANON), -1, 0);
+        errnoEnforce(workspace !is null);
+
+        this.ctx = ZSTD_initStaticCCtx(workspace, workspaceSize);
+        enforceEx!ZstdException(ctx !is null, "Failed to initialize static compression context");
+    }
+    this() {
+        ctx = ZSTD_createCCtx();
+        enforceEx!ZstdException(ctx !is null, "Failed to allocate compression context");
+    }
+    ~this() {
+        if (workspace !is null) {
+            munmap(workspace, workspaceSize);
+            workspace = null;
+            ctx = null; // don't free static memory contexts
+        }
+        if (ctx !is null) {
+            zstdEnforce(ZSTD_freeCCtx(ctx));
+        }
+    }
+
+    public ubyte[] compress(const(void)[] src, ubyte[] dest) {
+        auto result = ZSTD_compressCCtx(ctx, dest.ptr, dest.length, src.ptr, src.length, level);
+        zstdEnforce(result);
+        return dest[0..result];
+    }
 }
 
 public class StreamCompressor {

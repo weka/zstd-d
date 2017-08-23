@@ -17,6 +17,11 @@ class ZstdException : Exception
         super(cast(string)ZSTD_getErrorName(code).fromStringz, filename, line);
     }
 }
+void zstdEnforce(size_t code, string filename = __FILE__, size_t line = __LINE__) {
+    if (ZSTD_isError(code)) {
+        throw new ZstdException(code, filename, line);
+    }
+}
 
 @property @trusted string zstdVersion()
 {

@@ -80,3 +80,8 @@ size_t ZSTD_DStreamInSize ();
 size_t ZSTD_DStreamOutSize ();
 size_t ZSTD_initDStream (ZSTD_DStream* zds);
 size_t ZSTD_decompressStream (ZSTD_DStream* zds, ZSTD_outBuffer* output, ZSTD_inBuffer* input);
+
+// experimental - should statically link with zstd to use (as of v1.3.1)
+size_t ZSTD_estimateCCtxSize(int compressionLevel);
+size_t ZSTD_estimateDCtxSize();
+ZSTD_CCtx* ZSTD_initStaticCCtx(void* workspace, size_t workspaceSize);
