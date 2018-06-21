@@ -1,6 +1,10 @@
 module zstd.compress;
 
 import std.exception;
+static if (__VERSION__ >= 2079) {
+    // With 2.079 enforce became a complete super set of enforceEx, enforceEx is deprecated
+    alias enforceEx = enforce;
+}
 
 import zstd.c.zstd;
 import zstd.common;
