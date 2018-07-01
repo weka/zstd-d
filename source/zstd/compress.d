@@ -47,11 +47,11 @@ public class Compressor {
         errnoEnforce(workspace !is null);
 
         this.ctx = ZSTD_initStaticCCtx(workspace, workspaceSize);
-        enforceEx!ZstdException(ctx !is null, "Failed to initialize static compression context");
+        enforce!ZstdException(ctx !is null, "Failed to initialize static compression context");
     }
     this() {
         ctx = ZSTD_createCCtx();
-        enforceEx!ZstdException(ctx !is null, "Failed to allocate compression context");
+        enforce!ZstdException(ctx !is null, "Failed to allocate compression context");
     }
     ~this() {
         if (workspace !is null) {
