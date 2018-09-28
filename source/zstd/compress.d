@@ -69,6 +69,12 @@ public class Compressor {
         zstdEnforce(result);
         return dest[0..result];
     }
+
+    public ubyte[] compress(const(void)[] src) {
+        auto destCap = compressBound(src.length);
+        auto dest = new ubyte[destCap];
+        return compress(src, dest);
+    }
 }
 
 public class StreamCompressor {
