@@ -4,12 +4,14 @@ import zstd.c.zstd;
 
 class ZstdException : Exception
 {
+    @nogc nothrow
     @trusted
     this(string msg, string filename = __FILE__, size_t line = __LINE__)
     {
         super(msg, filename, line);
     }
 
+    @nogc nothrow
     @trusted
     this(size_t code, string filename = __FILE__, size_t line = __LINE__)
     {

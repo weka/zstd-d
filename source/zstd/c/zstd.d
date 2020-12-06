@@ -1,7 +1,7 @@
 module zstd.c.zstd;
 
 extern (C):
-@trusted:
+@trusted @nogc nothrow:
 
 alias ZSTD_CCtx_s ZSTD_CCtx;
 alias ZSTD_DCtx_s ZSTD_DCtx;

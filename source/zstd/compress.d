@@ -81,14 +81,17 @@ public class StreamCompressor {
     private ZSTD_CStream* cstream;
     private int level = Level.base;
 
+    @nogc nothrow
     public static @property size_t recommendedInSize() @trusted {
         return ZSTD_CStreamInSize();
     }
 
+    @nogc nothrow
     public static @property size_t recommendedOutSize() @trusted {
         return ZSTD_CStreamOutSize();
     }
 
+    @nogc nothrow
     public this(int level = Level.base)
     in {
         assert(Level.min <= level && level <= Level.max);
@@ -97,6 +100,7 @@ public class StreamCompressor {
         this.level = level;
     }
 
+    @nogc nothrow
     public ~this() {
         if (cstream) {
             ZSTD_freeCStream(cstream);
