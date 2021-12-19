@@ -95,7 +95,7 @@ public class StreamCompressor {
     public this(int level = Level.base)
     in {
         assert(Level.min <= level && level <= Level.max);
-    } body {
+    } do {
         cstream = ZSTD_createCStream();
         this.level = level;
     }
