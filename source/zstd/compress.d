@@ -164,3 +164,72 @@ public class StreamCompressor {
         return Applier!()(dest, &this.finish);
     }
 }
+
+struct DictCompressor {
+  private:
+    ZSTD_CCtx* cCtx;
+    void[] cDictBuf;
+    const(ZSTD_CDict)* cDict;
+    ubyte[] buffer;
+    uint dictLen;
+    int level;
+    ZSTD_compressionParameters params;
+
+  public:
+    @property @trusted static {
+        size_t recommendedInSize() {
+            return ZSTD_CStreamInSize();
+        }
+
+        size_t recommendedOutSize() {
+            return ZSTD_CStreamOutSize();
+        }
+    }
+
+    this(void[] _buffer, int level = Level.base) {
+        enum maxDictLen = 16*4096;
+        enum maxCompressedBlock = 4096; // TODO: this should be the segment size
+        assert(Level.min <= level && level <= Level.max);
+        this.level = level;
+        auto cctxMaxSize = (ZSTD_estimateCCtxSize(level) + 7) & (~7L); // align up to a multiple of 8 bytes as ZSTD requires
+        cCtx = ZSTD_initStaticCCtx(_buffer.ptr, cctxMaxSize);
+        _buffer = _buffer[cctxMaxSize..$];
+
+        auto cDictMaxSize = ZSTD_estimateCDictSize(maxDictLen, level);
+        assert(cast(ulong)_buffer.ptr % 8 == 0);
+
+        //ZSTD_compressionParameters cParams = ZSTD_getCParams_internal(compressionLevel, ZSTD_CONTENTSIZE_UNKNOWN, dictSize, ZSTD_cpm_createCDict);
+        params = ZSTD_getCParams(level, maxCompressedBlock, maxDictLen);
+
+        cDictBuf = _buffer[0..cDictMaxSize];
+        buffer = cast(ubyte[])(_buffer[cDictMaxSize..$]);
+        assert(buffer.length >= recommendedOutSize);
+    }
+
+    void setDict(void[] dict) {
+        enum maxDictLen = 64*4096;
+        enum maxCompressedBlock = 4096; // TODO: this should be the segment size
+
+        dictLen = cast(uint)(dict is null ? 0 : dict.length);
+        auto mod = dictLen % 8;
+        auto dictPtr = dict is null ? null : (dict.ptr + mod);
+        dictLen -= mod;
+
+        cDict = ZSTD_initStaticCDict(cDictBuf.ptr, cDictBuf.length, dictPtr, dictLen,
+                                     ZSTD_dictLoadMethod_e.ZSTD_dlm_byCopy,
+                                     ZSTD_dictContentType_e.ZSTD_dct_rawContent, params);
+        enforce!ZstdException(cDict !is null, "Failed to initialize static compression dictionary");
+    }
+
+    auto compress(const(void)[] src) {
+        ZSTD_inBuffer input = {src.ptr, src.length, 0};
+        ZSTD_outBuffer output = {buffer.ptr, buffer.length, 0};
+
+        auto ret = ZSTD_compress_usingCDict(cCtx, buffer.ptr, buffer.length, src.ptr, src.length, cDict);
+        enforce!ZstdException(ret > 0 && ret <= src.length + 128, "Unexpected compression return value");
+        //assert(ret > 0 && ret <= src.length + 128, format("compressing %d bytes (dictLen=%d dict=%x) resulted in %d bytes. %s", src.length, dictLen, cDict, ret, fromStringz(ZSTD_getErrorName(ret))));
+        return buffer[0..ret];
+    }
+}
+
+
